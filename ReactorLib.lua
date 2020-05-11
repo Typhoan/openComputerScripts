@@ -48,6 +48,10 @@ function transferHohlraum()
     return hasHohlraum
 end
 
+function setInjectionRate(rate)
+   reactor.setInjectionRate(rate) 
+end
+
 function isReactorTransposer(transposer)
     for i=0,#sides-1 do
         if transposer.getInventoryName(i) == "mekanismgenerators:reactor" then
