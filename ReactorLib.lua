@@ -1,5 +1,4 @@
 component = require("component")
-event = require("event")
 
 reactor = component.reactor_logic_adapter
 
@@ -10,14 +9,24 @@ active = nil
 injectionRate = 0
 energyProducing = false
 
-reactorDeuterium = false
-reactorTritium = false
 reactorTransposer = false
 
 sideReactor = false
 sideStorage = false
 
+chargePercent = false
+
 hasHohlraum = false
+
+tankName = "ultimate_gas_tank"
+
+function format(val)
+    if val > 1000000000000 then return (math.floor(val/100000000000)/10) .. "T"
+    elseif val > 1000000000 then return (math.floor(val/100000000)/10) .. "G"
+    elseif val > 1000000 then return (math.floor(val/100000)/10) .. "M"
+    elseif val > 1000 then return (math.floor(val/100)/10) .. "k"
+    else return math.floor(val*10)/10; end
+end
 
 function getHohlraum(side)
     for i=1,transposer.getInventorySize(side) do
@@ -48,10 +57,6 @@ function transferHohlraum()
     return hasHohlraum
 end
 
-function setInjectionRate(rate)
-   reactor.setInjectionRate(rate) 
-end
-
 function isReactorTransposer(transposer)
     for i=0,#sides-1 do
         if transposer.getInventoryName(i) == "mekanismgenerators:reactor" then
@@ -59,6 +64,17 @@ function isReactorTransposer(transposer)
         end
     end
     return false
+end
+
+function canIgnite()
+    
+    if injectionRate == 0 then return { ready = false, error = "injection rate is 0" }; end
+    if chargePercent < 40 then return { ready = false, error = "laser not charged" }; end
+    if reactor.getDeuterium() < 500 then return { ready = false, error = "<500mB deuterium" }; end
+    if reactor.getTritium() < 500 then return { ready = false, error = "<500mB tritium" }; end
+    if not hasHohlraum then return { ready = false, error = "missing hohlraum" }; end
+
+    return { ready = true }
 end
 
 function initializeReactor()
@@ -87,6 +103,6 @@ function initializeReactor()
 
     injectionRate = reactor.getInjectionRate()
     active = reactor.getProducing() > 0
-
+    energyProducing = format(reactor.getProducing())
     hasHohlraum = getHohlraum(sideReactor) ~= false
 end
