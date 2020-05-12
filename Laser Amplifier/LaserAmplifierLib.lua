@@ -1,6 +1,8 @@
 local component = require("component")
 local sides = require("sides")
 
+laserAmp = {}
+
 local laser = component.laser_amplifier
 local redstone = component.redstone
 
@@ -8,12 +10,11 @@ local redstone = component.redstone
 local _redstoneSignalLaserSide = "right"
 local _redstoneSignalPowerSide = "left"
 
-local chargePercent = false
-local laserSide = false
-local powerSide = false
+laserAmp.chargePercent = false
+laserAmp.laserSide = false
+laserAmp.powerSide = false
 
-
-function getLaserCharge()
+function laserAmp.getLaserCharge()
 	local val = laser.getEnergy() / laser.getMaxEnergy() * 100
 	if val >= 40 then 
 		stopChargingLasers()
@@ -22,7 +23,7 @@ function getLaserCharge()
 end
 
 
-function setRedstoneOutputSide(redstoneSignalSide)
+function laserAmp.setRedstoneOutputSide(redstoneSignalSide)
 	if redstoneSignalSide == "front" then return sides.front end
 	if redstoneSignalSide == "back" then return  sides.back end
 	if redstoneSignalSide == "left" then return sides.left end
@@ -33,16 +34,16 @@ function setRedstoneOutputSide(redstoneSignalSide)
 	return false
 end
 
-function startChargingLasers()
+function laserAmp.startChargingLasers()
 	redstone.setOutput(powerSide, 16)
 end
 
-function stopChargingLasers()
+function laserAmp.stopChargingLasers()
 	redstone.setOutput(powerSide, 0)
 end
 
-function fireLaser()
-	if chargePercent >= 40 then
+function laserAmp.fireLaser()
+	if laserAmp.chargePercent >= 40 then
 		stopChargingLasers()
 		redstone.setOutput(laserSide, 16)
 		sleep(500)
@@ -50,6 +51,8 @@ function fireLaser()
 	end
 end 
  
-laserSide = setRedstoneOutputSide(_redstoneSignalLaserSide)
-powerSide = setRedstoneOutputSide(_redstoneSignalPowerSide)
-chargePercent = getLaserCharge()
+laserAmp.laserSide = setRedstoneOutputSide(_redstoneSignalLaserSide)
+laserAmp.powerSide = setRedstoneOutputSide(_redstoneSignalPowerSide)
+laserAmp.chargePercent = getLaserCharge()
+
+retunr laserAmp
