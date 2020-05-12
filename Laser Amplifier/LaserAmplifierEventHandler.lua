@@ -5,10 +5,10 @@ local serialization = require("serialization")
 
 function eventHandler(_, from, port, rawData)
     local data = serialization.unserialize(rawData)
-    
+
     print("Recived Event: ", data["event"])
     if data["event"] == "GetLaserCharge" then
-        minitel.rsend("Reactor", port, serialization.serialize({ event = "LaserChargeUpdate", result = LaserAmplifier.chargePercent }))
+        minitel.rsend("Reactor", port, serialization.serialize({ event = "LaserChargeUpdate", result = LaserAmplifier.getLaserCharge() }))
     elseif data["event"] == "ChargeLasers" then
         LaserAmplifier.startChargingLasers()
     elseif data["event"] == "StopChargingLasers" then
