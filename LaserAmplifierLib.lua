@@ -3,6 +3,7 @@ sides = require("sides")
 
 laser = component.laser_amplifier
 redstone = componenet.redstone
+
 --configure side to emit redstone signal
 _redstoneSignalLaserSide = "right"
 _redstoneSignalPowerSide = "left"
@@ -13,17 +14,9 @@ powerSide = false
 
 
 function getLaserCharge()
-    return laser.getEnergy() / laser.getMaxEnergy() * 100
+    return  laser.getEnergy() / laser.getMaxEnergy() * 100 
 end
 
-function readyToIgnite()
-	if chargePercent < 40 then 
-		return { ready = false, error = "laser not charged" }; 
-	end
-	
-	stopChargingLasers()
-	return { ready = true }
-end
 
 function setRedstoneOutputSide(redstoneSignalSide)
 	if redstoneSignalSide == "front" then return sides.front end
@@ -46,6 +39,7 @@ end
 
 function fireLaser()
 	if chargePercent >= 40 then
+		stopChargingLasers()
 		redstone.setOutput(laserSide, 16)
 		sleep(500)
 		redstone.setOutput(laserSide, 0)
