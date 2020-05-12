@@ -55,4 +55,4 @@ laserAmp.laserSide = setRedstoneOutputSide(_redstoneSignalLaserSide)
 laserAmp.powerSide = setRedstoneOutputSide(_redstoneSignalPowerSide)
 laserAmp.chargePercent = getLaserCharge()
 
-retunr laserAmp
+return laserAmp
