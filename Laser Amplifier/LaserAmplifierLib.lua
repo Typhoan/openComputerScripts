@@ -1,20 +1,24 @@
-component = require("component")
-sides = require("sides")
+local component = require("component")
+local sides = require("sides")
 
-laser = component.laser_amplifier
-redstone = componenet.redstone
+local laser = component.laser_amplifier
+local redstone = component.redstone
 
 --configure side to emit redstone signal
-_redstoneSignalLaserSide = "right"
-_redstoneSignalPowerSide = "left"
+local _redstoneSignalLaserSide = "right"
+local _redstoneSignalPowerSide = "left"
 
-chargePercent = false
-laserSide = false
-powerSide = false
+local chargePercent = false
+local laserSide = false
+local powerSide = false
 
 
 function getLaserCharge()
-    return  laser.getEnergy() / laser.getMaxEnergy() * 100 
+	local val = laser.getEnergy() / laser.getMaxEnergy() * 100
+	if val >= 40 then 
+		stopChargingLasers()
+	end
+    return  val
 end
 
 

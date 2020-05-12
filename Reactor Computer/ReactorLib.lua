@@ -1,24 +1,24 @@
-component = require("component")
+local component = require("component")
 
-reactor = component.reactor_logic_adapter
+local reactor = component.reactor_logic_adapter
 
-tankDeuterium = nil
-tankTritium = nil
+local tankDeuterium = nil
+local tankTritium = nil
 
-active = nil
-injectionRate = 0
-energyProducing = false
+local active = nil
+local injectionRate = 0
+local energyProducing = false
 
-reactorTransposer = false
+local reactorTransposer = false
 
-sideReactor = false
-sideStorage = false
+local sideReactor = false
+local sideStorage = false
 
-chargePercent = false
+local chargePercent = false
 
-hasHohlraum = false
+local hasHohlraum = false
 
-tankName = "ultimate_gas_tank"
+local tankName = "ultimate_gas_tank"
 
 function format(val)
     if val > 1000000000000 then return (math.floor(val/100000000000)/10) .. "T"
@@ -30,7 +30,7 @@ end
 
 function getHohlraum(side)
     for i=1,transposer.getInventorySize(side) do
-        slotData = transposer.getStackInSlot(side, i)
+        local slotData = transposer.getStackInSlot(side, i)
         if slotData ~= nil and slotData.name == "mekanismgenerators:hohlraum" then
             return { slot = i, stack = slotData }
         end
@@ -43,11 +43,15 @@ function getHohlraumLabel()
     else return "load hohlraum"; end
 end
 
+function setInjectionRate(rate)
+    reactor.setInjectionRate(rate)
+end
+
 function transferHohlraum()
     if hasHohlraum then
         transposer.transferItem(sideReactor, sideStorage, 1)
     else
-        data = getHohlraum(sideStorage)
+        local data = getHohlraum(sideStorage)
         if not data then return false; end
         transposer.transferItem(sideStorage, sideReactor, 1, data.slot)
     end
