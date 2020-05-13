@@ -9,10 +9,10 @@ function updateStatus()
     minitel.rsend("LaserAmplifier", httpPort, {event = "GetLaserCharge"})
 
     local status = {
-        injectionRate = ReactorLib.injectionRate,
-        active = ReactorLib.active,
-        energyProducing = ReactorLib.energyProducing,
-        hasHohlraum = ReactorLib.hasHohlraum,
+        injectionRate = ReactorLib.reactor.getInjectionRate(),
+        active = ReactorLib.isActive(),
+        energyProducing = ReactorLib.getEnergyProducing(),
+        hasHohlraum = ReactorLib.hasHohlraum(),
         chargePercent = ReactorLib.chargePercent,
         deuterium = ReactorLib.tankDeuterium.getStoredGas(),
         tritium = ReactorLib.tankTritium.getStoredGas(),
@@ -33,13 +33,18 @@ function eventHandler(_, from, port, rawData)
     elseif data["event"] == "TransferHohlraum" then
         ReactorLib.transferHohlraum()
     elseif data["event"] == "SetInjectionRate" then
-        ReactorLib.setInjectionRate()
+        ReactorLib.setInjectionRate(data["result"])
     elseif data["event"] == "ChargeLasers" then
-        minitel.rsend("LaserAmplifier", port, {event = "ChargeLasers"})
+        minitel.rsend("LaserAmplifier", port, serialization.serialize({event = "ChargeLasers"}))
     elseif data["event"] == "StopChargingLasers" then
-        minitel.rsend("LaserAmplifier", port, {event = "StopChargingLasers"})
+        minitel.rsend("LaserAmplifier", port, serialization.serialize({event = "StopChargingLasers"}))
     elseif data["event"] == "Ignite" then
-        minitel.rsend("LaserAmplifier", port, {event = "Ignite"} )
+        local canIgnite = ReactorLib.canIgnite()
+        if canIgnite.ready == true then
+            minitel.rsend("LaserAmplifier", port, serialization.serialize({event = "Ignite"} ))
+        else
+            minitel.rsend("HAL9000", port, serialization.serialize({event = "IgniteError", error = canIgnite.error} ))
+        end
     end
     print("Finished Event: ", data["event"])
 end

@@ -1,5 +1,5 @@
 local component = require("component")
-
+local sides = require("sides")
 lib = {}
 
 lib.reactor = component.reactor_logic_adapter
@@ -17,13 +17,13 @@ local reactorTransposer = false
 local sideReactor = false
 local sideStorage = false
 
-lib.chargePercent = false
+lib.chargePercent = 0
 
 local hasHohlraum = false
 
 local tankName = "ultimate_gas_tank"
 
-function lib.format(val)
+function format(val)
     if val > 1000000000000 then return (math.floor(val/100000000000)/10) .. "T"
     elseif val > 1000000000 then return (math.floor(val/100000000)/10) .. "G"
     elseif val > 1000000 then return (math.floor(val/100000)/10) .. "M"
@@ -42,25 +42,23 @@ function lib.getHohlraum(side)
 end
 
 function lib.getHohlraumLabel()
-    if lib.hasHohlraum then return "eject hohlraum"
+    if lib.hasHohlraum() then return "eject hohlraum"
     else return "load hohlraum"; end
 end
 
 function lib.setInjectionRate(rate)
+    lib.injectionRate = rate
     lib.reactor.setInjectionRate(rate)
 end
 
 function lib.transferHohlraum()
-    if hasHohlraum then
-        transposer.transferItem(sideReactor, sideStorage, 1)
-    else
+    if(hasHohlraum == false) then
         local data = lib.getHohlraum(sideStorage)
         if not data then return false; end
         transposer.transferItem(sideStorage, sideReactor, 1, data.slot)
     end
 
     hasHohlraum = lib.getHohlraum(sideReactor) ~= false
-
     return hasHohlraum
 end
 
@@ -75,11 +73,11 @@ end
 
 function lib.canIgnite()
     
-    if lib.injectionRate == 0 then return { ready = false, error = "injection rate is 0" }; end
-    if lib.chargePercent < 40 then return { ready = false, error = "laser not charged" }; end
+    if lib.reactor.getInjectionRate() == 0 then return { ready = false, error = "injection rate is 0" }; end
+    if lib.chargePercent < 70 then return { ready = false, error = "laser not charged" }; end
     if lib.reactor.getDeuterium() < 500 then return { ready = false, error = "<500mB deuterium" }; end
     if lib.reactor.getTritium() < 500 then return { ready = false, error = "<500mB tritium" }; end
-    if not lib.hasHohlraum then return { ready = false, error = "missing hohlraum" }; end
+    if not lib.hasHohlraum() then return { ready = false, error = "missing hohlraum" }; end
 
     return { ready = true }
 end
@@ -101,19 +99,26 @@ function lib.initializeReactor()
             for i=0,#sides-1 do
                 if transposer.getInventoryName(i) == "mekanismgenerators:reactor" then
                     sideReactor = i
-                elseif transposer.getInventorySize(i) ~= nil then
+                elseif transposer.getInventoryName(i) == "minecraft:chest" then
                     sideStorage = i
                 end
             end
         end
     end
 
-    lib.injectionRate = lib.reactor.getInjectionRate()
-    lib.active = lib.reactor.getProducing() > 0
-    lib.energyProducing = lib.format(lib.reactor.getProducing())
-    lib.hasHohlraum = lib.getHohlraum(sideReactor) ~= false
+    hasHohlraum = lib.hasHohlraum()
+end
 
-    return true
+function lib.hasHohlraum()
+    return lib.getHohlraum(sideReactor) ~= false
+end 
+
+function lib.isActive()
+    return lib.reactor.getProducing() >= 1
+end
+
+function lib.getEnergyProducing()
+    return format(lib.reactor.getProducing())
 end
 
 return lib
