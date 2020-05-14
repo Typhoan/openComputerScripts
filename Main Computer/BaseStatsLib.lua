@@ -244,7 +244,7 @@ function transferHohlraum()
 end
 
 function setInjectionRate()
-  minitel.rsend("Reactor", port, serialization.serialize({event = "SetInjectionRate"}))
+  minitel.rsend("Reactor", port, serialization.serialize({event = "SetInjectionRate", result = REACTOR_INJECTION_RATE}))
 end 
 
 return status
