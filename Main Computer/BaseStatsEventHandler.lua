@@ -5,9 +5,11 @@ local BaseStats = require("BaseStatsLib")
 
 function eventHandler(_, from, port, rawData)
     local data = serialization.unserialize(rawData)
-    if data.event == "ReactorStatusUpdate" then
-        local statusUpdate = data.result
+    if data["event"] == "ReactorStatusUpdate" then
+        local statusUpdate = data["result"]
         BaseStats.setReactorStatus(statusUpdate)
+    elseif
+        BaseStats.SetLaserCharge(data["result"])
     end
 end
 

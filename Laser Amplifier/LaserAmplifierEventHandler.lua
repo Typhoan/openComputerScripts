@@ -1,6 +1,6 @@
-event = require("event")
+local event = require("event")
 local LaserAmplifier = require("LaserAmplifierLib")
-minitel = require("minitel")
+local minitel = require("minitel")
 local serialization = require("serialization")
 
 function eventHandler(_, from, port, rawData)

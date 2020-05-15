@@ -50,12 +50,13 @@ local quit = false
  
 status = {}
 
-ReactorStats = {
+local chargePercent = 0
+
+local ReactorStats = {
   injectionRate = 0,
   active = false,
   energyProducing = 0,
   hasHohlraum = false,
-  chargePercent = 0,
   deuterium = 0,
   tritium = 0,
   canIgnite = {ready = false, error = "injection rate = 0"}
@@ -77,13 +78,29 @@ function status.main(args)
     end
   ))
 
-  table.insert(background, event.listen("ignite", igniteReactor()))
+  table.insert(background, event.listen("ignite", function()
+    minitel.rsend("LaserAmplifier", port, serialization.serialize({event = "Ignite"} ))
+  end
+  ))
 
-  table.insert(background, event.listen("transfer", transferHohlraum()))
+  table.insert(background, event.listen("transfer", function()
+    minitel.rsend("Reactor", port, serialization.serialize({event = "TransferHohlraum"}))
+  end
+  ))
 
-  table.insert(background, event.listen("setInjectionRate", setInjectionRate()))
+  table.insert(background, event.listen("setInjectionRate", function()
+    minitel.rsend("Reactor", port, serialization.serialize({event = "SetInjectionRate", result = REACTOR_INJECTION_RATE}))
+  end
+  ))
 
-  table.insert(background, updateReactorStatus())
+  table.insert(background, thread.create(
+    function()
+      os.sleep(1)
+      minitel.rsend("Reactor", port, serialization.serialize({event = "ReactorStatusUpdate"}))
+      minitel.rsend("LaserAmplifier", port, serialization.serialize({event = "GetLaserCharge"}))
+      updateReactorStatus()
+    end
+  ))
 
   table.insert(background, thread.create(failFast(function() app:start() end)))
 
@@ -100,7 +117,7 @@ function status.main(args)
   end
 
   tty.gpu().setBackground(resetBColor)
-  tty.gpu().setForeground(resentFColor)
+  tty.gpu().setForeground(resetFColor)
   tty.clear()
 
   if err then
@@ -120,10 +137,10 @@ function override(object, method, fn)
 end
 
 function getLaserProgressBarColor()
-  if ReactorStats["chargePercent"] ~= nil then
-    if ReactorStats["chargePercent"] <= 25 then
+  if chargePercent ~= nil then
+    if chargePercent <= 25 then
       return C_REACTOR_LASER_CHARGE_LOW
-    elseif ReactorStats["chargePercent"] > 25 and ReactorStats["chargePercent"]  <= 50 then
+    elseif chargePercent > 25 and chargePercent  <= 50 then
       return C_REACTOR_LASER_CHARGE_MEDIUM
     else 
       return C_REACTOR_LASER_CHARGE_HIGH
@@ -136,63 +153,74 @@ function buildGui()
   local app = GUI.application()
   local statusBar = app:addChild(GUI.container(1, 1, app.width, 1))
   local window = app:addChild(GUI.container(1, 1 + statusBar.height, app.width, app.height - statusBar.height))
-  local panel = window:addChild(GUI.panel(1, 1, window.width, window.height, C_BACKGROUND))
+  window:addChild(GUI.panel(1, 1, window.width, window.height, C_BACKGROUND))
 
   local columns = math.floor(window.width / 60) + 1
 
-  panel:addChild(GUI.progressBar(2, 2, 80, getLaserProgressBarColor(), C_REACTOR_LASER_SECONDARY, C_REACTOR_LASER_TEXT, ReactorStats["chargePercent"], false, true, "Laser Charge: ", ""))
-  
-  panel:addChild(GUI.text(2, 3, C_INPUT, "Active:            "..ReactorStats["active"]))
-  panel:addChild(GUI.text(2, 4, C_INPUT, "Producing:         "..ReactorStats["energyProducing"]))
-  panel:addChild(GUI.text(2, 5, C_INPUT, "Injection Rate:    "..ReactorStats["injectionRate"]))
+  if ReactorStats["active"] then
+    window:addChild(GUI.text(2, 2, C_INPUT, "Active:            True"))
+  else
+    window:addChild(GUI.text(2, 2, C_INPUT, "Active:            False"))
+  end
+  window:addChild(GUI.text(2, 3, C_INPUT, "Producing:         "..ReactorStats["energyProducing"]))
+  window:addChild(GUI.text(2, 4, C_INPUT, "Injection Rate:    "..ReactorStats["injectionRate"]))
 
-  panel:addChild(GUI.roundedButton(4, 5, 4, 2, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[0]')).onTouch = function(app, object)
+  window:addChild(GUI.Button(4, 4, 30, 8, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[0]')).onTouch = function(app, object)
     REACTOR_INJECTION_RATE = 0
     event.push('setInjectionRate')
   end
 
-  panel:addChild(GUI.roundedButton(5, 5, 4, 2, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[2]')).onTouch = function(app, object)
+  window:addChild(GUI.Button(5, 4, 30, 8, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[2]')).onTouch = function(app, object)
     REACTOR_INJECTION_RATE = 2
     event.push('setInjectionRate')
   end
 
-  panel:addChild(GUI.roundedButton(6, 5, 4, 2, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[4]')).onTouch = function(app, object)
+  window:addChild(GUI.Button(6, 4, 30, 8, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[4]')).onTouch = function(app, object)
     REACTOR_INJECTION_RATE = 4
     event.push('setInjectionRate')
   end
 
-  panel:addChild(GUI.roundedButton(7, 5, 4, 2, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[6]')).onTouch = function(app, object)
+  window:addChild(GUI.Button(7, 4, 30, 8, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[6]')).onTouch = function(app, object)
     REACTOR_INJECTION_RATE = 6
     event.push('setInjectionRate')
   end
 
-  panel:addChild(GUI.roundedButton(8, 5, 4, 2, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[8]')).onTouch = function(app, object)
+  window:addChild(GUI.Button(8, 4, 30, 8, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[8]')).onTouch = function(app, object)
     REACTOR_INJECTION_RATE = 8
     event.push('setInjectionRate')
   end
 
-  panel:addChild(GUI.text(2, 6, C_INPUT, "Deuterium Gas:     "..ReactorStats["deuterium"]))
-  panel:addChild(GUI.text(2, 7, C_INPUT, "Tritium Gas:       "..ReactorStats["tritium"]))
+  window:addChild(GUI.text(2, 5, C_INPUT, "Deuterium Gas:     "..ReactorStats["deuterium"]))
+  window:addChild(GUI.text(2, 6, C_INPUT, "Tritium Gas:       "..ReactorStats["tritium"]))
 
   if ReactorStats["active"] == false then
     if ReactorStats["hasHohlraum"] then
-      panel:addChild(GUI.text(2, 8, C_INPUT, "Hohlraum Inserted"))
+      window:addChild(GUI.text(2, 7, C_INPUT, "Hohlraum Inserted"))
     else 
-      panel:addChild(GUI.text(2, 8, C_INPUT, "Hohlraum Missing"))
-      panel:addChild(GUI.roundedButton(4, 8, 10, 2, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[TRANSFER]')).onTouch = function(app, object)
+      window:addChild(GUI.text(2, 7, C_INPUT, "Hohlraum Missing"))
+      window:addChild(GUI.roundedButton(4, 8, 10, 2, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[TRANSFER]')).onTouch = function(app, object)
         event.push('transfer')
       end
     end
 
-    if ReactorStats["canIgnite"].ready then
-      panel:addChild(GUI.text(2, 9, C_INPUT, "Ready to Ignite:  "))
-      panel:addChild(GUI.roundedButton(4, 9, 10, 2, C_REACTOR_IGNITE_BACKGROUND, C_REACTOR_IGNITE_TEXT, C_REACTOR_IGNITE_BACKGROUND_PUSHED, C_REACTOR_IGNITE_TEXT, '[IGNITE]')).onTouch = function(app, object)
+    if ReactorStats["canIgnite"]["ready"] == true and chargePercent >= 70 then
+      window:addChild(GUI.text(2, 8, C_INPUT, "Ready to Ignite:  "))
+      window:addChild(GUI.roundedButton(4, 8, 10, 2, C_REACTOR_IGNITE_BACKGROUND, C_REACTOR_IGNITE_TEXT, C_REACTOR_IGNITE_BACKGROUND_PUSHED, C_REACTOR_IGNITE_TEXT, '[IGNITE]')).onTouch = function(app, object)
         event.push('ignite')
       end
+      window:addChild(GUI.progressBar(2, 9, 80, getLaserProgressBarColor(), C_REACTOR_LASER_SECONDARY, C_REACTOR_LASER_TEXT, chargePercent, false, true, "Laser Charge: ", ""))
     else 
-      panel:addChild(GUI.text(2, 9, C_INPUT, "Can't Ignite:  "..ReactorStats["canIgnite"].error))
+      local igniteError = ""
+      if ReactorStats["canIgnite"].error ~=nill then
+        igniteError = ReactorStats["canIgnite"].error
+      else
+        igniteError = "Lasers arnt Charged"
+      end
+      window:addChild(GUI.text(2, 9, C_INPUT, "Can't Ignite:  "..igniteError))
     end
   end
+
+
   statusBar:addChild(GUI.panel(1, 1, statusBar.width, statusBar.height, C_STATUS_BAR))
   local statusText = statusBar:addChild(GUI.text(2, 1, C_STATUS_TEXT, 'Base Stats'))
   --statusText.eventHandler = function(app, self)
@@ -227,24 +255,17 @@ function status.setReactorStatus(statusUpdate)
   ReactorStats = statusUpdate
 end
 
+function status.setChargePercent(charge)
+   chargePercent = charge
+end
+
 function updateReactorStatus()
   thread.create(function()
-    os.sleep(1)
+    os.sleep(5)
     minitel.rsend("Reactor", port, serialization.serialize({event = "ReactorStatusUpdate"}))
+    minitel.rsend("LaserAmplifier", port, serialization.serialize({event = "GetLaserCharge"}))
     updateReactorStatus()
   end)
 end
-
-function igniteReactor()
-    minitel.rsend("Reactor", port, serialization.serialize({event = "Ignite"}))
-end
-
-function transferHohlraum()
-  minitel.rsend("Reactor", port, serialization.serialize({event = "TransferHohlraum"}))
-end
-
-function setInjectionRate()
-  minitel.rsend("Reactor", port, serialization.serialize({event = "SetInjectionRate", result = REACTOR_INJECTION_RATE}))
-end 
 
 return status
