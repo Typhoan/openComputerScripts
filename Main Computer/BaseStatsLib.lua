@@ -62,11 +62,27 @@ local ReactorStats = {
   canIgnite = {ready = false, error = "injection rate = 0"}
 }
  
+status.ReactorGUIElements = {
+  injectionRate = nil,
+  active = nil,
+  energyProducing = nil,
+  hasHohlraum = nil,
+  deuterium = nil,
+  tritium = nil,
+  canIgnite = nil,
+  laserCharge = nil,
+  igniteButton = nil,
+  transferButton = nil
+}
+
+local app = nil
+local window = nil
+
 function status.main(args)
   minitel.rsend("Reactor", port, serialization.serialize({event = "ReactorStatusUpdate"}))
   resetBColor, resetFColor = tty.gpu().getBackground(), tty.gpu().getForeground()  
  
-  local app = buildGui()
+  app = buildGui()
   app:draw(true)
 
   local background = {}
@@ -95,9 +111,10 @@ function status.main(args)
 
   table.insert(background, thread.create(
     function()
-      os.sleep(1)
+      os.sleep(5)
       minitel.rsend("Reactor", port, serialization.serialize({event = "ReactorStatusUpdate"}))
       minitel.rsend("LaserAmplifier", port, serialization.serialize({event = "GetLaserCharge"}))
+      buildReactorGUI(window)
       updateReactorStatus()
     end
   ))
@@ -105,7 +122,7 @@ function status.main(args)
   table.insert(background, thread.create(failFast(function() app:start() end)))
 
   local _, err = event.pull('exit')
-
+  print(err)
   app:stop()
 
   for _, b in ipairs(background) do
@@ -149,66 +166,94 @@ function getLaserProgressBarColor()
   return C_REACTOR_LASER_CHARGE_LOW
 end
 
-function buildGui()
-  local app = GUI.application()
-  local statusBar = app:addChild(GUI.container(1, 1, app.width, 1))
-  local window = app:addChild(GUI.container(1, 1 + statusBar.height, app.width, app.height - statusBar.height))
-  window:addChild(GUI.panel(1, 1, window.width, window.height, C_BACKGROUND))
-
-  local columns = math.floor(window.width / 60) + 1
-
-  if ReactorStats["active"] then
-    window:addChild(GUI.text(2, 2, C_INPUT, "Active:            True"))
+function setOrUpdateReactorStatusElementText(window, elementName, text, x, y)
+  if status.ReactorGUIElements[elementName] ~= nil then
+    status.ReactorGUIElements[elementName].text = text
   else
-    window:addChild(GUI.text(2, 2, C_INPUT, "Active:            False"))
+    status.ReactorGUIElements[elementName] = window:addChild(GUI.text(x, y, C_INPUT, text))
   end
-  window:addChild(GUI.text(2, 3, C_INPUT, "Producing:         "..ReactorStats["energyProducing"]))
-  window:addChild(GUI.text(2, 4, C_INPUT, "Injection Rate:    "..ReactorStats["injectionRate"]))
+end
 
-  window:addChild(GUI.Button(4, 4, 30, 8, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[0]')).onTouch = function(app, object)
+function RemoveElementFromWindow(element, window)
+  if element ~= nil then
+    window:remove(element)
+  end
+
+  return nil
+end
+
+function generateReactorButtons(window)
+  window:addChild(GUI.text(40, 3, C_INPUT, "Set Injection"))
+  window:addChild(GUI.adaptiveFramedButton(40, 4, 1, 1, C_REACTOR_INJECTION_RATE_BACKGROUND, C_REACTOR_INJECTION_RATE__TEXT, C_REACTOR_INJECTION_RATE_BACKGROUND_PUSHED, C_REACTOR_INJECTION_RATE__TEXT, '[0]')).onTouch = function(app, object)
     REACTOR_INJECTION_RATE = 0
     event.push('setInjectionRate')
   end
 
-  window:addChild(GUI.Button(5, 4, 30, 8, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[2]')).onTouch = function(app, object)
+  window:addChild(GUI.adaptiveFramedButton(45, 4, 1, 1, C_REACTOR_INJECTION_RATE_BACKGROUND, C_REACTOR_INJECTION_RATE__TEXT, C_REACTOR_INJECTION_RATE_BACKGROUND_PUSHED, C_REACTOR_INJECTION_RATE__TEXT, '[2]')).onTouch = function(app, object)
     REACTOR_INJECTION_RATE = 2
     event.push('setInjectionRate')
   end
 
-  window:addChild(GUI.Button(6, 4, 30, 8, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[4]')).onTouch = function(app, object)
+  window:addChild(GUI.adaptiveFramedButton(50, 4, 1, 1, C_REACTOR_INJECTION_RATE_BACKGROUND, C_REACTOR_INJECTION_RATE__TEXT, C_REACTOR_INJECTION_RATE_BACKGROUND_PUSHED, C_REACTOR_INJECTION_RATE__TEXT, '[4]')).onTouch = function(app, object)
     REACTOR_INJECTION_RATE = 4
     event.push('setInjectionRate')
   end
 
-  window:addChild(GUI.Button(7, 4, 30, 8, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[6]')).onTouch = function(app, object)
+  window:addChild(GUI.adaptiveFramedButton(55, 4, 1, 1, C_REACTOR_INJECTION_RATE_BACKGROUND, C_REACTOR_INJECTION_RATE__TEXT, C_REACTOR_INJECTION_RATE_BACKGROUND_PUSHED, C_REACTOR_INJECTION_RATE__TEXT, '[6]')).onTouch = function(app, object)
     REACTOR_INJECTION_RATE = 6
     event.push('setInjectionRate')
   end
 
-  window:addChild(GUI.Button(8, 4, 30, 8, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[8]')).onTouch = function(app, object)
+  window:addChild(GUI.adaptiveFramedButton(60, 4, 1, 1, C_REACTOR_INJECTION_RATE_BACKGROUND, C_REACTOR_INJECTION_RATE__TEXT, C_REACTOR_INJECTION_RATE_BACKGROUND_PUSHED, C_REACTOR_INJECTION_RATE__TEXT, '[8]')).onTouch = function(app, object)
     REACTOR_INJECTION_RATE = 8
     event.push('setInjectionRate')
   end
 
-  window:addChild(GUI.text(2, 5, C_INPUT, "Deuterium Gas:     "..ReactorStats["deuterium"]))
-  window:addChild(GUI.text(2, 6, C_INPUT, "Tritium Gas:       "..ReactorStats["tritium"]))
+end
+
+function createReactorStaticStats(window)
+  local active = ""
+  if ReactorStats["active"] then 
+    active =  "Active:            True" 
+  else  
+    active =  "Active:            False" 
+  end
+  local energy = "Producing:         "..ReactorStats["energyProducing"]
+  local rate = "Injection Rate:    "..ReactorStats["injectionRate"]
+  local deuGas = "Deuterium Gas:     "..ReactorStats["deuterium"]
+  local tritGas = "Tritium Gas:       "..ReactorStats["tritium"]
+
+  setOrUpdateReactorStatusElementText(window, "active", active, 2, 2)
+  setOrUpdateReactorStatusElementText(window, "energyProducing", energy, 2, 3)
+  setOrUpdateReactorStatusElementText(window, "injectionRate", rate, 2, 4)
+  setOrUpdateReactorStatusElementText(window, "deutrium", deuGas, 2, 5)
+  setOrUpdateReactorStatusElementText(window, "tritium", tritGas, 2, 6)
+end
+
+function createReactorHohlraumStats(window)
+  local holhraum = ""
+  if ReactorStats["active"] == false and ReactorStats["hasHohlraum"] == false then
+    holhraum = "Hohlraum Missing"
+  else
+    holhraum ="Hohlraum Inserted"
+  end 
 
   if ReactorStats["active"] == false then
-    if ReactorStats["hasHohlraum"] then
-      window:addChild(GUI.text(2, 7, C_INPUT, "Hohlraum Inserted"))
-    else 
-      window:addChild(GUI.text(2, 7, C_INPUT, "Hohlraum Missing"))
-      window:addChild(GUI.roundedButton(4, 8, 10, 2, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[TRANSFER]')).onTouch = function(app, object)
-        event.push('transfer')
-      end
-    end
+    setOrUpdateReactorStatusElementText(window, "hasHohlraum", holhraum, 2, 7)
+  else
+    status.ReactorGUIElements.hasHohlraum = RemoveElementFromWindow(status.ReactorGUIElements.hasHohlraum, window)
+  end
 
+end
+
+
+function createReactorIngiteStats(window)
+  if ReactorStats["active"] == false then
     if ReactorStats["canIgnite"]["ready"] == true and chargePercent >= 70 then
-      window:addChild(GUI.text(2, 8, C_INPUT, "Ready to Ignite:  "))
-      window:addChild(GUI.roundedButton(4, 8, 10, 2, C_REACTOR_IGNITE_BACKGROUND, C_REACTOR_IGNITE_TEXT, C_REACTOR_IGNITE_BACKGROUND_PUSHED, C_REACTOR_IGNITE_TEXT, '[IGNITE]')).onTouch = function(app, object)
-        event.push('ignite')
-      end
-      window:addChild(GUI.progressBar(2, 9, 80, getLaserProgressBarColor(), C_REACTOR_LASER_SECONDARY, C_REACTOR_LASER_TEXT, chargePercent, false, true, "Laser Charge: ", ""))
+      
+      setOrUpdateReactorStatusElementText(window, "canIgnite", "Ready to Ignite", 2, 8)
+      status.ReactorGUIElements.laserCharge = RemoveElementFromWindow(status.ReactorGUIElements.laserCharge, window)
+
     else 
       local igniteError = ""
       if ReactorStats["canIgnite"].error ~=nill then
@@ -216,9 +261,66 @@ function buildGui()
       else
         igniteError = "Lasers arnt Charged"
       end
-      window:addChild(GUI.text(2, 9, C_INPUT, "Can't Ignite:  "..igniteError))
+
+      if status.ReactorGUIElements.laserCharge ~= nil then
+        status.ReactorGUIElements.laserCharge = chargePercent
+      else 
+        status.ReactorGUIElements.laserCharge = window:addChild(GUI.progressBar(2, 9, 80, C_REACTOR_LASER_CHARGE_HIGH, C_REACTOR_LASER_SECONDARY, C_REACTOR_LASER_TEXT, chargePercent, false, true, "Laser Charge: ", ""))
+      end
+      setOrUpdateReactorStatusElementText(window, "canIgnite", "Can't Ignite:  "..igniteError, 2, 8)
+    end
+  else 
+    status.ReactorGUIElements.canIgnite = RemoveElementFromWindow(status.ReactorGUIElements.canIgnite, window)
+    status.ReactorGUIElements.laserCharge = RemoveElementFromWindow(status.ReactorGUIElements.laserCharge, window)
+  end
+end
+
+
+function createRactorHohlraumButton(window)
+  if status.ReactorGUIElements.transferButton ~= nil then
+    if ReactorStats["active"] == true or ReactorStats["hasHohlraum"] == true then
+      RemoveElementFromWindow(status.ReactorGUIElements.transferButton, window)
+    end
+  else
+    status.ReactorGUIElements.transferButton = window:addChild(GUI.adaptiveRoundedButton(40, 7, 1, 1, C_REACTOR_HOHLRAUM_BACKGROUND, C_REACTOR_HOHLRAUM_TEXT, C_REACTOR_HOHLRAUM_BACKGROUND_PUSHED, C_REACTOR_HOHLRAUM_TEXT, '[TRANSFER]'))
+    status.ReactorGUIElements.transferButton.onTouch = function(app, object)
+      event.push('transfer')
     end
   end
+end
+
+function createReactorIgniteButton(window)
+  if ReactorStats["active"] == false then
+    if ReactorStats["canIgnite"]["ready"] == true and chargePercent >= 70 then
+      status.ReactorGUIElements.igniteButton = window:addChild(GUI.adaptiveRoundedButton(25, 8, 1, 1, C_REACTOR_IGNITE_BACKGROUND, C_REACTOR_IGNITE_TEXT, C_REACTOR_IGNITE_BACKGROUND_PUSHED, C_REACTOR_IGNITE_TEXT, '[IGNITE]'))
+      status.ReactorGUIElements.igniteButton.onTouch = function(app, object)
+        event.push('ignite')
+      end
+    end
+  else 
+    status.ReactorGUIElements.igniteButton = RemoveElementFromWindow(status.ReactorGUIElements.igniteButton, window)
+  end
+end
+
+function buildReactorGUI(window)
+  generateReactorButtons(window)
+  createReactorStaticStats(window)
+  createReactorHohlraumStats(window)
+  createRactorHohlraumButton(window)
+  createReactorIgniteButton(window)
+  createReactorIngiteStats(window)
+end
+
+function buildGui()
+  local app = GUI.application()
+  local statusBar = app:addChild(GUI.container(1, 1, app.width, 1))
+  window = app:addChild(GUI.container(1, 1 + statusBar.height, app.width, app.height - statusBar.height))
+
+  window:addChild(GUI.panel(1, 1, window.width, window.height, C_BACKGROUND))
+
+  local columns = math.floor(window.width / 60) + 1
+
+  buildReactorGUI(window)
 
 
   statusBar:addChild(GUI.panel(1, 1, statusBar.width, statusBar.height, C_STATUS_BAR))
@@ -262,8 +364,11 @@ end
 function updateReactorStatus()
   thread.create(function()
     os.sleep(5)
+
     minitel.rsend("Reactor", port, serialization.serialize({event = "ReactorStatusUpdate"}))
     minitel.rsend("LaserAmplifier", port, serialization.serialize({event = "GetLaserCharge"}))
+    buildReactorGUI(window)
+    window:draw(true)
     updateReactorStatus()
   end)
 end
